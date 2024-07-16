@@ -1,3 +1,17 @@
+
+const express = require("express");
+const app = express();
+const PORT = 3000;
+const path = require("path");
+
+const dataFile = path.join(__dirname, "contacts.json")
+app.use(express.urlencoded({extended : false})); // middleware
+app.use(express.json()) // serializare
+app.get("/", async (req, res) => {res.json("Helloooo!!!")})
+app.listen(PORT, () => {console.log("Server is UP on port 3000.")})
+
+
+/*
 const express = require('express')
 const logger = require('morgan')
 const cors = require('cors')
@@ -23,3 +37,4 @@ app.use((err, req, res, next) => {
 })
 
 module.exports = app
+*/
