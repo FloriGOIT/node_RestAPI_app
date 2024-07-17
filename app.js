@@ -2,36 +2,53 @@
 
 
 
-const express = require("express");
+const express =  require("express");
 const app = express();
+const colors = require("colors");
 const PORT = 3000;
-const path = require("path");
-const fs = require("fs").promises
+app.use(express.urlencoded({extended:false}));
+app.use(express.json());
+console.log("Eschal is from Ecart".green)
+
+const ITEMS = [
+                {id: "1", item:"i am here"},
+                {id: "2", item:"let it be your will God, shelp me understand the LIGHT path"}
+              ]
+console.log(ITEMS)              
+app.get("/",async (req, res) => {res.json("continuing...")})
 
 
-const dataFile = path.join(__dirname, "contacts.json")
-app.use(express.urlencoded({extended : false})); // middleware
-app.use(express.json()) // serializare
+
+
+app.get("/items", async (req, res) =>
+           {
+            try{res.json(ITEMS)}
+            catch(err){res.status(500).json({error: "Server internal error."})}
+           } 
+       )
+// "I have my intention here"
+app.post("/items", async (req, res) =>
+           {
+            try{const newI = {id: new Date(), item: req.body.title};
+                ITEMS.push(newI);
+                res.json(newI)}
+            catch(err){res.status(500).json({error: "Server internal error."})}
+           }
+        )
+
+app.get("/items/:id",async (req, res) => {
+    try {
+        const idItem = req.params.id;
+        res.json({ id: `${idItem}` });
+    } catch (err) {
+        res.status(500).json({ error: "Server internal error." });
+    }
+});
+
+app.listen(PORT, () => {console.log("Server is up".blue)})
 
 
 
-const readData = async () =>
-{
-  try{ await fs.readFile(dataFile, "utf-8"); console.log("readData: was done with succes!".green)}
-  catch(err){console.log("readData:".red, err)}
-}
-
-const writeData = async (data) =>
-{
-  try{await fs.writeFile(dataFile, JSON.stringify(data, null, 2))}
-  catch(err){console.log("writeData:".red, err)}
-}
-
-app.get("/", async (req, res) => {res.json("Helloooo!!!")})
-app.get("/items", async (req, res)=>{
-  
-})
-app.listen(PORT, () => {console.log("Server is UP on port 3000.".green)})
 
 /*
 const express = require('express')
