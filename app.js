@@ -1,15 +1,37 @@
 
+
+
+
 const express = require("express");
 const app = express();
 const PORT = 3000;
 const path = require("path");
+const fs = require("fs").promises
+
 
 const dataFile = path.join(__dirname, "contacts.json")
 app.use(express.urlencoded({extended : false})); // middleware
 app.use(express.json()) // serializare
-app.get("/", async (req, res) => {res.json("Helloooo!!!")})
-app.listen(PORT, () => {console.log("Server is UP on port 3000.")})
 
+
+
+const readData = async () =>
+{
+  try{ await fs.readFile(dataFile, "utf-8"); console.log("readData: was done with succes!".green)}
+  catch(err){console.log("readData:".red, err)}
+}
+
+const writeData = async (data) =>
+{
+  try{await fs.writeFile(dataFile, JSON.stringify(data, null, 2))}
+  catch(err){console.log("writeData:".red, err)}
+}
+
+app.get("/", async (req, res) => {res.json("Helloooo!!!")})
+app.get("/items", async (req, res)=>{
+  
+})
+app.listen(PORT, () => {console.log("Server is UP on port 3000.".green)})
 
 /*
 const express = require('express')
