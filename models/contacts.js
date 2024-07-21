@@ -1,7 +1,3 @@
-
-
-
-/*
 // const fs = require('fs/promises')
 
 const listContacts = async () => {}
@@ -21,4 +17,3 @@ module.exports = {
   addContact,
   updateContact,
 }
-*/

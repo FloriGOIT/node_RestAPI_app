@@ -1,56 +1,3 @@
-
-
-
-
-const express =  require("express");
-const app = express();
-const colors = require("colors");
-const PORT = 3000;
-app.use(express.urlencoded({extended:false}));
-app.use(express.json());
-console.log("Eschal is from Ecart".green)
-
-const ITEMS = [
-                {id: "1", item:"i am here"},
-                {id: "2", item:"let it be your will God, shelp me understand the LIGHT path"}
-              ]
-console.log(ITEMS)              
-app.get("/",async (req, res) => {res.json("continuing...")})
-
-
-
-
-app.get("/items", async (req, res) =>
-           {
-            try{res.json(ITEMS)}
-            catch(err){res.status(500).json({error: "Server internal error."})}
-           } 
-       )
-// "I have my intention here"
-app.post("/items", async (req, res) =>
-           {
-            try{const newI = {id: new Date(), item: req.body.title};
-                ITEMS.push(newI);
-                res.json(newI)}
-            catch(err){res.status(500).json({error: "Server internal error."})}
-           }
-        )
-
-app.get("/items/:id",async (req, res) => {
-    try {
-        const idItem = req.params.id;
-        res.json({ id: `${idItem}` });
-    } catch (err) {
-        res.status(500).json({ error: "Server internal error." });
-    }
-});
-
-app.listen(PORT, () => {console.log("Server is up".blue)})
-
-
-
-
-/*
 const express = require('express')
 const logger = require('morgan')
 const cors = require('cors')
@@ -76,4 +23,3 @@ app.use((err, req, res, next) => {
 })
 
 module.exports = app
-*/
