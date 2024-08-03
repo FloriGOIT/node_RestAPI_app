@@ -75,7 +75,7 @@ router.patch("/:id/favorite", async (req, res) => {
     if(!contact){return res.status(404).json({error: "Contact not found"})}
     else{
         try{const {error} = JoiSchemaFavorite.validate(req.body);
-            if(error){return res.status(400).json({error: error.details[0].message})}
+            if(error){return res.status(400).json({"message": "missing field favorite"})}
             else{await updateStatusContact(contactId, {favorite: req.body.favorite})
             res.status(200).send("status updated")}}
     catch(error){res.status(404).json({error: "Not found"})}
