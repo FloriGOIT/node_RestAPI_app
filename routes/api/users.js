@@ -4,6 +4,7 @@ const Joi = require("joi");
 const UserDB = require("../../models/usersDb.js");
 const verifyToken = require("../../config/validateToken.js");
 const jwt = require("jsonwebtoken");
+const gravatar = require('gravatar'); // newly
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -49,17 +50,19 @@ router.post("/users/signup", async (req, res, next) => {
     });
   } else {
     try {
-      const newUser = new UserDB({ password, email, subscription });
+      const newUser = new UserDB({ email, subscription });
       await newUser.setPassword(password);
       await newUser.save();
+      const gravatarUrl = gravatar.url(email, { s: '250', r: 'pg', d: 'identicon' });
       res.status(201).json({
         status: "success",
         code: 201,
         user: {
-          email: `${email}`,
+          email: newUser.email,
           subscription: newUser.subscription,
+          gravatarUrl: gravatarUrl
         },
-      });
+      }).render('index', { gravatarUrl });
     } catch (error) {
       res.status(500).json({ error: "Internal Server Error" });
     }

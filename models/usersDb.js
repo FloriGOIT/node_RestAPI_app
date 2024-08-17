@@ -20,6 +20,7 @@ const userSchemaDb = new mongoose.Schema({
     type: String,
     default: null,
   },
+  avatarURL: {type: String}
 });
 userSchemaDb.methods.setPassword = async function (password) {
   this.password = await bcryptjs.hash(password, 10);

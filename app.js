@@ -1,8 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require ("mongoose");
-
 const app = express();
+const path = require("path")
+
+// newlly
+app.set('view engine', 'ejs');
+app.use(express.static(path.join(__dirname, 'public')));
+// newlly ended
+
 const contactsRouter = require('./routes/api/contacts.js');
 const usersRouter =  require("./routes/api/users.js");
 const passport = require('passport');
@@ -40,5 +46,7 @@ app.use((err, req, res, next) => {
     data: err.data || "Internal Server Erroriiiii",
   });
 });
-
+app.listen(3000, () => {
+  console.log("Server is running. Use our API on port: 3000");
+});
 module.exports = app;
