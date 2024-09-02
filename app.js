@@ -1,8 +1,18 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require ("mongoose");
-
 const app = express();
+const path = require("path")
+
+// gravatar
+// app.set('view engine', 'ejs');
+const publicPath = path.join(process.cwd(), 'public')
+app.use(express.static(publicPath)); 
+console.log("publicPath", publicPath)
+// gravatar ended
+
+
+
 const contactsRouter = require('./routes/api/contacts.js');
 const usersRouter =  require("./routes/api/users.js");
 const passport = require('passport');
@@ -40,5 +50,7 @@ app.use((err, req, res, next) => {
     data: err.data || "Internal Server Erroriiiii",
   });
 });
-
+app.listen(3000, () => { 
+  console.log("Server is running. Use our API on port: 3000");
+});
 module.exports = app;

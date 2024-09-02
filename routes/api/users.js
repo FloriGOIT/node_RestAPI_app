@@ -4,8 +4,30 @@ const Joi = require("joi");
 const UserDB = require("../../models/usersDb.js");
 const verifyToken = require("../../config/validateToken.js");
 const jwt = require("jsonwebtoken");
+const gravatar = require('gravatar'); // newly
+const Jimp = require("jimp")
 const dotenv = require("dotenv");
 dotenv.config();
+const path = require("path")
+const multer = require('multer');
+const fs = require("fs")
+
+
+const uploadDir = path.join(process.cwd(), 'tmp');
+const storage = multer.diskStorage({
+  destination: (req, avatarUpload, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, avatarUpload, cb) => {
+    cb(null, avatarUpload.originalname);
+  },
+  limits: {
+    fileSize: 1048576,
+  },
+});
+
+const upload = multer({storage});
+
 
 const JoiUserSchema = Joi.object({
   email: Joi.string().required().min(3).max(100).email(),
@@ -49,17 +71,20 @@ router.post("/users/signup", async (req, res, next) => {
     });
   } else {
     try {
-      const newUser = new UserDB({ password, email, subscription });
+      const gravatarUrl = gravatar.url(email, { s: '250', r: 'pg', d: 'mm' });
+      const newUser = await new UserDB({ email, subscription, avatarURL: gravatarUrl});
       await newUser.setPassword(password);
       await newUser.save();
+      
       res.status(201).json({
         status: "success",
         code: 201,
         user: {
-          email: `${email}`,
+          email: newUser.email,
           subscription: newUser.subscription,
+          avatarURL: gravatarUrl
         },
-      });
+      })
     } catch (error) {
       res.status(500).json({ error: "Internal Server Error" });
     }
@@ -101,6 +126,7 @@ router.post("/users/signin", async (req, res, next) => {
         user: {
           email: `${email}`,
           subscription: user.subscription,
+          avatarURL: user.avatarURL
         },
       },
     });
@@ -148,5 +174,39 @@ router.patch("/users/subscription", verifyToken, async (req, res, next) => {
     return res.status(400).json({ error: "Bad request" });
   }
 });
+
+
+
+router.patch("/users/avatars", verifyToken, upload.single("avatarUpload"), async (req, res, next) => {
+  try {
+    const user = req.user;
+    if (req.tokenValidated === user.token) {
+      const newAvatar = req.file;
+      const uniqueFileName = `${new Date().getTime()}_${newAvatar.originalname}`;
+      const tmpImagePath = path.join(process.cwd(), 'tmp', newAvatar.filename); console.log("tmpImagePath", tmpImagePath)
+      const outputImagePath = path.join(process.cwd(), 'public', 'avatars', uniqueFileName); console.log("outputImagePath", outputImagePath)
+      Jimp.read(tmpImagePath)
+      .then( image => {image.cover(250, 250, Jimp.HORIZONTAL_ALIGN_CENTER | Jimp.VERTICAL_ALIGN_MIDDLE);
+                       image.write(outputImagePath, (err) => {
+                        if (err) throw err;
+                        console.log('JIMP - Image processed and saved successfully!')})});
+      const data = await UserDB.findByIdAndUpdate(
+        user.id,
+        { avatarURL: `http://localhost:3000/avatars/${uniqueFileName}` }, { new: true }
+      );
+      user.save();
+      fs.unlink(tmpImagePath, (err) => {
+        if (err) {console.error('Error deleting the file:', err);return;}
+        else{console.log('File deleted successfully')};
+    });
+      return res.status(200).json({newAvatar: data.avatarURL});
+    } else {
+      return res.status(404).json({ error: "Not found by token" });
+    }
+  } catch (eror) {
+    return res.status(400).json({ error: "Bad request" });
+  }
+});
+
 
 module.exports = router;
