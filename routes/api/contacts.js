@@ -24,6 +24,8 @@ router.get("/", async (req, res, next) => {
   } catch (error) {
     res.status(400).json({ error: "Bad requesttttt" });
   }
+  const baseUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  console.log("baseUrlCustomer",baseUrl)
 });
 
 router.get("/:id", verifyToken, async (req, res, next) => {
