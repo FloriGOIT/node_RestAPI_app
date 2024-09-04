@@ -35,6 +35,10 @@ const userSchemaDb = new mongoose.Schema({
   confirmationEmail:{
     type: String,
     default:""
+  },
+  userLoged : {
+    type: Boolean,
+    default: false
   }
 });
 userSchemaDb.methods.setPassword = async function (password) {

@@ -11,39 +11,8 @@ dotenv.config();
 const path = require("path")
 const multer = require('multer');
 const fs = require("fs");
-const nodemailer = require('nodemailer');
-const htmlFisrt = `<html>
-                    <body>
-                      <h1>Please confirm your account</h1>
-                      <h3>In order to confirm your email account, please click on the link below:</h3>
-                      <br>
-                      <a href="http://localhost:3000/api/users/verify/i6BkvIBzqjVRO2wY87qIt6T7FjOIK8" style="text-decoration: none;">
-                        <button style="
-                          background-color: yellow; 
-                          color: green; 
-                          font-weight: bold; 
-                          border: none; 
-                          padding: 10px 20px; 
-                          font-size: 16px;
-                          cursor: pointer;">
-                          Confirm!
-                        </button>
-                      </a>
-                    </body>
-                  </html>`
-
-
-/* function generateRandomString(length = 30) {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * characters.length);
-    result += characters[randomIndex];
-  }
-  return result;
-} */
-const verificationTokenSet = "i6BkvIBzqjVRO2wY87qIt6T7FjOIK8";
-console.log('Received verification token:', verificationTokenSet);
+const sendEmailOptions= require("../../config/nodemailer.js") 
+// const nodemailer = require('nodemailer');
 
 const uploadDir = path.join(process.cwd(), 'tmp');
 const storage = multer.diskStorage({
@@ -57,10 +26,7 @@ const storage = multer.diskStorage({
     fileSize: 1048576,
   },
 });
-
 const upload = multer({storage});
-
-
 const JoiUserSchema = Joi.object({
   email: Joi.string().required().min(3).max(100).email(),
   password: Joi.string().required().min(8),
@@ -69,13 +35,27 @@ const JoiUserSchema = Joi.object({
 const JoiUserSubscriptionSchema = Joi.object({
   subscription: Joi.string().required().valid("starter", "pro", "business"),
 });
+const JoiUserEmailSchema = Joi.object({
+  email: Joi.string().required()
+});
+
+function generateRandomString(length = 30) {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters[randomIndex];
+  }
+  return result;
+} 
+const verificationTokenSet = generateRandomString()
+
+
 
 router.get("/users", verifyToken, async (req, res, next) => {
   try {
     const data = await UserDB.find({});
     const currentUserToken = req.user.token;
-    console.log("currentUserToken", currentUserToken);
-    console.log("tokenValidate", req.tokenValidated);
     if (currentUserToken === req.tokenValidated) {
       return res.status(200).json(data);
     } else {
@@ -102,37 +82,16 @@ router.post("/users/signup", async (req, res, next) => {
     });
   
   } 
-  
   else {
     try {
       const gravatarUrl = gravatar.url(email, { s: '250', r: 'pg', d: 'mm' });
-      const newUser = await new UserDB({ email, subscription: "starter", avatarURL: gravatarUrl, verify: false, verificationToken: verificationTokenSet });
+      const newUser = await new UserDB({ email, subscription: "starter", avatarURL: gravatarUrl, verify: false, verificationToken: verificationTokenSet  });
+      const link = `http://localhost:3000/api/users/verify/${verificationTokenSet}`
       await newUser.setPassword(password);
+
       await newUser.save();
-
-      const nodemailerConfig = {
-        host: "smtp.office365.com",
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.OUTLOOK_EMAIL,
-          pass: process.env.OUTLOOK_PASSWORD,
-        },
-      };
-      console.log("nodemailerConfig",nodemailerConfig)
-
-      const transporter = nodemailer.createTransport(nodemailerConfig);
-      const emailOptions = {
-        from: process.env.OUTLOOK_EMAIL,
-        to: email,
-        subject: 'Email confirmation',
-        html : htmlFisrt
-       };
-
-      transporter
-        .sendMail(emailOptions)
-        .then(info => console.log(info))
-        .catch(err => console.log(err));
+      await sendEmailOptions(email, link).then((info) => console.log("sent"))
+                             .catch((err) => console.log(err));
 
       return res.status(201).json({
         status: "success",
@@ -140,21 +99,21 @@ router.post("/users/signup", async (req, res, next) => {
         user: {
           email: newUser.email,
           subscription: newUser.subscription,
-          avatarURL: gravatarUrl
-        },
+          avatarURL: gravatarUrl,
+          verificationToken: newUser.verificationToken },
       })
     } catch (error) {
-      res.status(500).json({ error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error signup" });
     }
   }
 });
 
+
+
 router.get("/users/verify/:verificationToken", async (req, res, next) => {
   try {
     const codeToken = req.params.verificationToken;
-    console.log('Received verification token:', codeToken);
     const baseUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-    console.log("baseUrl", baseUrl)
 
     // Find the user by the verification token
     const userConfirmedPrevious = await UserDB.findOne({ confirmationEmail: baseUrl });
@@ -166,7 +125,7 @@ router.get("/users/verify/:verificationToken", async (req, res, next) => {
       return res.status(404).json({ message: 'User not found or token invalid' });
     }
 
-    if (user.UserConfirmed) {
+    if (user.userConfirmed) {
       return res.status(400).json({
         status: 'error',
         message: 'Email has already been confirmed.',
@@ -188,6 +147,24 @@ router.get("/users/verify/:verificationToken", async (req, res, next) => {
   }
 });
 
+router.post("/users/verify", async (req, res, next) => {
+  const {error} = JoiUserEmailSchema.validate(req.body)
+  if(error){return res.status(400).json({ error: error.details[0].message })}
+  else{
+    const {email} = req.body
+    const user = await UserDB.findOne({email})
+    if(!user){return res.status(400).json({message: "User was not found!"})}
+    else{
+      if(user.confirmationEmail !== ""){return res.status(200).json({message: "User email already confirmed!"})}
+      else{const link = `http://localhost:3000/api/users/verify/${user.verificationToken}`
+      console.log("link", link)
+           await sendEmailOptions(email, link).then((info) => console.log(info))
+                                              .catch((err) => console.log(err));
+          return res.status(200).json({message:"Confirmation mail was resent. Please check your email and confirm!"})}
+    }
+  }
+})
+
 
 router.post("/users/signin", async (req, res, next) => {
   const { error } = JoiUserSchema.validate(req.body);
@@ -196,6 +173,7 @@ router.post("/users/signin", async (req, res, next) => {
   }
   const { password, email } = req.body;
   const user = await UserDB.findOne({ email });
+  if(user.confirmationEmail === ""){return res.status(400).json({message: "Please validate your email before Loging. Thank you!"})}
 
   if (!user || !(await user.isValidPassword(password))) {
     return res.status(400).json({
@@ -204,7 +182,7 @@ router.post("/users/signin", async (req, res, next) => {
       message: "Incorrect email or password",
       data: {
         message: "Bad Request",
-      },
+      }
     });
   } else {
     const payload = {
@@ -215,6 +193,7 @@ router.post("/users/signin", async (req, res, next) => {
       expiresIn: "1h",
     });
     user.token = token;
+    user.userLoged = true;
     await user.save();
     return res.status(200).json({
       message: "You signedIN with success!",
@@ -234,6 +213,7 @@ router.post("/users/signin", async (req, res, next) => {
 router.post("/users/signout", verifyToken, async (req, res, next) => {
   const user = req.user;
   user.token = "";
+  user.userLoged = false;
   await user.save();
   return res.status(200).json({ message: user });
 });
