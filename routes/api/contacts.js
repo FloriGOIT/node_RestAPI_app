@@ -22,7 +22,7 @@ router.get("/", async (req, res, next) => {
     const data = await listContacts(page, limit, favorite);
     res.status(200).json(data);
   } catch (error) {
-    res.status(400).json({ error: "Bad requesttttt" });
+    res.status(400).json({ error: "Bad request" });
   }
   const baseUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
   console.log("baseUrlCustomer",baseUrl)
