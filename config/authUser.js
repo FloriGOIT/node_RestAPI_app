@@ -6,9 +6,9 @@ const UserDB = require("../models/usersDb");
 const passport = require("passport")
 require("dotenv").config();
 
-const authorisationJWT = (req, res, next) => {
+const authorizationJWT = (req, res, next) => {
     passport.authenticate("jwt", {session: false}, (err, user) => {
-         if(!user || err){return res.status(401).json({error: "Not authorised due to authorisationJWT"})}
+         if(!user || err){return res.status(401).json({error: "Not authorized due to authorizationJWT"})}
          else{req.user = user;
               next()}
     })(req, res, next)
@@ -33,5 +33,5 @@ const authUser = async (req, res, next) => {
       }
   }; 
 
-  module.exports = authorisationJWT
+  module.exports = authorizationJWT
   */

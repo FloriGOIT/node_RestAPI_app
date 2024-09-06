@@ -10,8 +10,9 @@ const dotenv = require("dotenv");
 dotenv.config();
 const path = require("path")
 const multer = require('multer');
-const fs = require("fs")
-
+const fs = require("fs");
+const sendEmailOptions= require("../../config/nodemailer.js") 
+// const nodemailer = require('nodemailer');
 
 const uploadDir = path.join(process.cwd(), 'tmp');
 const storage = multer.diskStorage({
@@ -25,26 +26,36 @@ const storage = multer.diskStorage({
     fileSize: 1048576,
   },
 });
-
 const upload = multer({storage});
-
-
 const JoiUserSchema = Joi.object({
   email: Joi.string().required().min(3).max(100).email(),
   password: Joi.string().required().min(8),
-  subscription: Joi.string().default("starter"),
 });
 
 const JoiUserSubscriptionSchema = Joi.object({
   subscription: Joi.string().required().valid("starter", "pro", "business"),
 });
+const JoiUserEmailSchema = Joi.object({
+  email: Joi.string().required()
+});
+
+function generateRandomString(length = 30) {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters[randomIndex];
+  }
+  return result;
+} 
+const verificationTokenSet = generateRandomString()
+
+
 
 router.get("/users", verifyToken, async (req, res, next) => {
   try {
     const data = await UserDB.find({});
     const currentUserToken = req.user.token;
-    console.log("currentUserToken", currentUserToken);
-    console.log("tokenValidate", req.tokenValidated);
     if (currentUserToken === req.tokenValidated) {
       return res.status(200).json(data);
     } else {
@@ -60,7 +71,7 @@ router.post("/users/signup", async (req, res, next) => {
   if (error) {
     return res.status(400).json({ error: error.details[0].message });
   }
-  const { password, email, subscription } = req.body;
+  const { password, email } = req.body;
   const user = await UserDB.findOne({ email });
   if (user) {
     return res.status(409).json({
@@ -69,27 +80,91 @@ router.post("/users/signup", async (req, res, next) => {
       message: "Email already in use",
       data: "Conflict",
     });
-  } else {
+  
+  } 
+  else {
     try {
       const gravatarUrl = gravatar.url(email, { s: '250', r: 'pg', d: 'mm' });
-      const newUser = await new UserDB({ email, subscription, avatarURL: gravatarUrl});
+      const newUser = await new UserDB({ email, subscription: "starter", avatarURL: gravatarUrl, verify: false, verificationToken: verificationTokenSet  });
+      const link = `http://localhost:3000/api/users/verify/${verificationTokenSet}`
       await newUser.setPassword(password);
+
       await newUser.save();
-      
-      res.status(201).json({
+      await sendEmailOptions(email, link).then((info) => console.log("sent"))
+                             .catch((err) => console.log(err));
+
+      return res.status(201).json({
         status: "success",
         code: 201,
         user: {
           email: newUser.email,
           subscription: newUser.subscription,
-          avatarURL: gravatarUrl
-        },
+          avatarURL: gravatarUrl,
+          verificationToken: newUser.verificationToken },
       })
     } catch (error) {
-      res.status(500).json({ error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error signup" });
     }
   }
 });
+
+
+
+router.get("/users/verify/:verificationToken", async (req, res, next) => {
+  try {
+    const codeToken = req.params.verificationToken;
+    const baseUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+
+    // Find the user by the verification token
+    const userConfirmedPrevious = await UserDB.findOne({ confirmationEmail: baseUrl });
+    if(userConfirmedPrevious){return res.status(400).json({status: "400 Bad Request", message: "Verification has already been passed"})}
+    const user = await UserDB.findOne({ verificationToken: codeToken });
+
+    // If the user is not found, return an error
+    if (!user) {
+      return res.status(404).json({ message: 'User not found or token invalid' });
+    }
+
+    if (user.userConfirmed) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Email has already been confirmed.',
+      });
+    }
+
+    // Update the user to confirm email
+    user.userConfirmed = true;
+    user.verificationToken = null; // Optionally clear the token after verification
+    user.confirmationEmail = baseUrl;
+    await user.save();
+
+    // Return success response
+    return res.status(200).json({ message: 'User successfully verified' });
+
+  } catch (error) {
+    console.error('Error during user verification:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post("/users/verify", async (req, res, next) => {
+  const {error} = JoiUserEmailSchema.validate(req.body)
+  if(error){return res.status(400).json({ error: error.details[0].message })}
+  else{
+    const {email} = req.body
+    const user = await UserDB.findOne({email})
+    if(!user){return res.status(400).json({message: "User was not found!"})}
+    else{
+      if(user.confirmationEmail !== ""){return res.status(200).json({message: "User email already confirmed!"})}
+      else{const link = `http://localhost:3000/api/users/verify/${user.verificationToken}`
+      console.log("link", link)
+           await sendEmailOptions(email, link).then((info) => console.log(info))
+                                              .catch((err) => console.log(err));
+          return res.status(200).json({message:"Confirmation mail was resent. Please check your email and confirm!"})}
+    }
+  }
+})
+
 
 router.post("/users/signin", async (req, res, next) => {
   const { error } = JoiUserSchema.validate(req.body);
@@ -98,6 +173,7 @@ router.post("/users/signin", async (req, res, next) => {
   }
   const { password, email } = req.body;
   const user = await UserDB.findOne({ email });
+  if(user.confirmationEmail === ""){return res.status(400).json({message: "Please validate your email before Loging. Thank you!"})}
 
   if (!user || !(await user.isValidPassword(password))) {
     return res.status(400).json({
@@ -106,7 +182,7 @@ router.post("/users/signin", async (req, res, next) => {
       message: "Incorrect email or password",
       data: {
         message: "Bad Request",
-      },
+      }
     });
   } else {
     const payload = {
@@ -117,6 +193,7 @@ router.post("/users/signin", async (req, res, next) => {
       expiresIn: "1h",
     });
     user.token = token;
+    user.userLoged = true;
     await user.save();
     return res.status(200).json({
       message: "You signedIN with success!",
@@ -136,6 +213,7 @@ router.post("/users/signin", async (req, res, next) => {
 router.post("/users/signout", verifyToken, async (req, res, next) => {
   const user = req.user;
   user.token = "";
+  user.userLoged = false;
   await user.save();
   return res.status(200).json({ message: user });
 });
@@ -174,7 +252,6 @@ router.patch("/users/subscription", verifyToken, async (req, res, next) => {
     return res.status(400).json({ error: "Bad request" });
   }
 });
-
 
 
 router.patch("/users/avatars", verifyToken, upload.single("avatarUpload"), async (req, res, next) => {

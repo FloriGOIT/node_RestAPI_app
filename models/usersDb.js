@@ -22,8 +22,24 @@ const userSchemaDb = new mongoose.Schema({
   },
   avatarURL: {
     type: String,
-
   },
+  userConfirmed: {
+    type: Boolean,
+    default: false,
+  },
+  verificationToken: {
+    type: String,
+    required: function (){if(this.userConfirmed === false){return true}
+                          else{return false}}
+    },
+  confirmationEmail:{
+    type: String,
+    default:""
+  },
+  userLoged : {
+    type: Boolean,
+    default: false
+  }
 });
 userSchemaDb.methods.setPassword = async function (password) {
   this.password = await bcryptjs.hash(password, 10);
